@@ -178,6 +178,25 @@ formatting = {
             'focused': 'labelOrName + roleName',
             'unfocused': 'labelOrName + roleName + pause + currentLineText + allTextSelection',
             },
+        # TODO - JD: When we bump dependencies to 2.34, remove this fake role and use the real one.
+        'ROLE_CONTENT_DELETION': {
+            'focused': 'leaving or deletionStart',
+            'unfocused': 'deletionStart + pause + displayedText + pause + deletionEnd',
+            },
+        # TODO - JD: When we bump dependencies to 2.34, remove this fake role and use the real one.
+        'ROLE_CONTENT_INSERTION': {
+            'focused': 'leaving or insertionStart',
+            'unfocused': 'insertionStart + pause + displayedText + pause + insertionEnd',
+            },
+        # TODO - JD: When we bump dependencies to 2.36, remove this fake role and use the real one.
+        'ROLE_CONTENT_MARK': {
+            'focused': 'leaving or markStart',
+            'unfocused': 'markStart + pause + displayedText + pause + markEnd',
+            },
+        # TODO - JD: When we bump dependencies to 2.36, remove this fake role and use the real one.
+        'ROLE_CONTENT_SUGGESTION': {
+            'focused': 'leaving or roleName',
+            },
         pyatspi.ROLE_DESCRIPTION_TERM: {
             'unfocused': '(labelOrName or (displayedText + allTextSelection))',
             },
@@ -285,8 +304,8 @@ formatting = {
             },
         pyatspi.ROLE_LIST_ITEM: {
             'focused': 'expandableState',
-            'unfocused': '(labelOrName or (listItemMarker + displayedText + allTextSelection)) + pause + expandableState + pause + positionInList + pause + listBoxItemWidgets',
-            'basicWhereAmI': 'label + roleName + pause + (name or (listItemMarker + displayedText)) + pause + positionInList + pause + expandableState + (nodeLevel or nestingLevel) + pause'
+            'unfocused': '(labelOrName or (displayedText + allTextSelection)) + pause + expandableState + pause + positionInList + pause + listBoxItemWidgets',
+            'basicWhereAmI': 'label + roleName + pause + (name or displayedText) + pause + positionInList + pause + expandableState + (nodeLevel or nestingLevel) + pause'
             },
         pyatspi.ROLE_MATH: {
             'unfocused': 'math',
@@ -629,6 +648,7 @@ formatting = {
                                      asString(labelAndName + value + roleName + required))]',
             },
         pyatspi.ROLE_LABEL: {
+            'focused': '[Text(obj, asString(labelAndName))]',
             'unfocused': '[Text(obj, asString(labelAndName))]'
             },
         pyatspi.ROLE_LINK: {
@@ -648,12 +668,12 @@ formatting = {
                                      asString(label) and (len(asString(label)) + 1) or 0)]'
         },
         pyatspi.ROLE_LIST_ITEM: {
-            'focused':   '((substring and ([Region(asString(listItemMarker))] + ' + BRAILLE_TEXT + '))\
+            'focused':   '((substring and ' + BRAILLE_TEXT + ')\
                           or ([Component(obj,\
                                      asString(label + displayedText + expandableState + roleName + availability) + asString(accelerator))]\
                           + (nestingLevel and [Region(" " + asString(nestingLevel))])\
                           + (listBoxItemWidgets and ([Region(" ")] + listBoxItemWidgets))))',
-            'unfocused': '((substring and ([Region(asString(listItemMarker))] + ' + BRAILLE_TEXT + '))\
+            'unfocused': '((substring and ' + BRAILLE_TEXT + ')\
                           or ([Component(obj, asString(labelOrName + expandableState))]\
                               + (nestingLevel and [Region(" " + asString(nestingLevel))])\
                               + (listBoxItemWidgets and ([Region(" ")] + listBoxItemWidgets))))',

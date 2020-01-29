@@ -529,7 +529,7 @@ class Utilities:
             role = None
             name = ''
 
-        if role == pyatspi.ROLE_PUSH_BUTTON and name:
+        if role in [pyatspi.ROLE_PUSH_BUTTON, pyatspi.ROLE_LABEL] and name:
             return name
 
         try:
@@ -768,6 +768,24 @@ class Utilities:
         needed.
         """
 
+        return False
+
+    def isContentDeletion(self, obj):
+        return False
+
+    def isContentInsertion(self, obj):
+        return False
+
+    def isContentMarked(self, obj):
+        return False
+
+    def isContentSuggestion(self, obj):
+        return False
+
+    def isInlineSuggestion(self, obj):
+        return False
+
+    def isLastItemInInlineContentSuggestion(self, obj):
         return False
 
     def isEmpty(self, obj):
@@ -1324,6 +1342,9 @@ class Utilities:
 
     def shouldReadFullRow(self, obj):
         if self._script.inSayAll():
+            return False
+
+        if not self.cellRowChanged(obj):
             return False
 
         table = self.getTable(obj)
@@ -1975,9 +1996,6 @@ class Utilities:
     def isListItemMarker(self, obj):
         return False
 
-    def getListItemMarkerText(self, obj):
-        return ""
-
     def getOnScreenObjects(self, root, extents=None):
         if not self.isOnScreen(root, extents):
             return []
@@ -2117,8 +2135,9 @@ class Utilities:
         if obj.getRole() != pyatspi.ROLE_TABLE_CELL:
             return obj
 
-        hasContent = [x for x in obj if self.displayedText(x).strip()]
-        if len(hasContent) == 1 and not self.isStaticTextLeaf(hasContent[0]):
+        children = [x for x in obj if not self.isStaticTextLeaf(x)]
+        hasContent = [x for x in children if self.displayedText(x).strip()]
+        if len(hasContent) == 1:
             return hasContent[0]
 
         return obj
@@ -4397,7 +4416,7 @@ class Utilities:
 
         return startIndex, endIndex
 
-    def getShowingCellsInSameRow(self, obj):
+    def getShowingCellsInSameRow(self, obj, forceFullRow=False):
         parent = self.getTable(obj)
         try:
             table = parent.queryTable()
@@ -4410,7 +4429,10 @@ class Utilities:
         if row == -1:
             return []
 
-        startIndex, endIndex = self._getTableRowRange(obj)
+        if forceFullRow:
+            startIndex, endIndex = 0, table.nColumns
+        else:
+            startIndex, endIndex = self._getTableRowRange(obj)
         if startIndex == endIndex:
             return []
 
@@ -4765,9 +4787,9 @@ class Utilities:
         clipboard = Gtk.Clipboard.get(Gdk.Atom.intern("CLIPBOARD", False))
         clipboard.request_text(self._appendTextToClipboardCallback, text)
 
-    def _appendTextToClipboardCallback(self, clipboard, text, newText):
+    def _appendTextToClipboardCallback(self, clipboard, text, newText, separator=" "):
         text = text.rstrip("\n")
-        text = "%s\n%s" % (text, newText)
+        text = "%s%s%s" % (text, separator, newText)
         clipboard.set_text(text, -1)
 
     def lastInputEventCameFromThisApp(self):

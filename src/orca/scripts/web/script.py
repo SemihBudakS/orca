@@ -596,6 +596,9 @@ class Script(default.Script):
                     continue
 
                 obj, startOffset, endOffset, text = content
+                if startOffset == endOffset:
+                    continue
+
                 if self.utilities.isLabellingContents(obj):
                     continue
 
@@ -1442,6 +1445,11 @@ class Script(default.Script):
             return True
 
         if self._lastCommandWasMouseButton:
+            if (event.source, event.detail1) == self.utilities.getCaretContext():
+                msg = "WEB: Event is for current caret context."
+                debug.println(debug.LEVEL_INFO, msg, True)
+                return True
+
             msg = "WEB: Event handled: Last command was mouse button"
             debug.println(debug.LEVEL_INFO, msg, True)
             self.utilities.setCaretContext(event.source, event.detail1)
@@ -1763,6 +1771,17 @@ class Script(default.Script):
             msg = "WEB: Event source is not in document content"
             debug.println(debug.LEVEL_INFO, msg, True)
             return False
+
+        return False
+
+    def onFocus(self, event):
+        """Callback for focus: accessibility events."""
+
+        # We should get proper state-changed events for these.
+        if self.utilities.inDocumentContent(event.source):
+            msg = "WEB: Ignoring because object:state-changed-focused expected."
+            debug.println(debug.LEVEL_INFO, msg, True)
+            return True
 
         return False
 
@@ -2188,10 +2207,9 @@ class Script(default.Script):
     def onWindowActivated(self, event):
         """Callback for window:activate accessibility events."""
 
-        msg = "WEB: Calling default onWindowActivated"
+        msg = "WEB: Deferring to app/toolkit script"
         debug.println(debug.LEVEL_INFO, msg, True)
-        super().onWindowActivated(event)
-        return True
+        return False
 
     def onWindowDeactivated(self, event):
         """Callback for window:deactivate accessibility events."""

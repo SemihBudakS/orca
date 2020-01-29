@@ -245,7 +245,8 @@ class SpeechGenerator(speech_generator.SpeechGenerator):
 
         if self._script.utilities.isTextBlockElement(obj) \
            and not self._script.utilities.isLandmark(obj) \
-           and not self._script.utilities.isDPub(obj):
+           and not self._script.utilities.isDPub(obj) \
+           and not self._script.utilities.isContentSuggestion(obj):
             return []
 
         if obj.name:
@@ -433,6 +434,8 @@ class SpeechGenerator(speech_generator.SpeechGenerator):
             doNotSpeak.append(pyatspi.ROLE_TABLE_CELL)
             doNotSpeak.append(pyatspi.ROLE_TEXT)
             doNotSpeak.append(pyatspi.ROLE_STATIC)
+            if args.get('string'):
+                doNotSpeak.append("ROLE_CONTENT_SUGGESTION")
             if args.get('formatType', 'unfocused') != 'basicWhereAmI':
                 doNotSpeak.append(pyatspi.ROLE_LIST_ITEM)
                 doNotSpeak.append(pyatspi.ROLE_LIST)
@@ -634,9 +637,6 @@ class SpeechGenerator(speech_generator.SpeechGenerator):
         return result
 
     def _generateTableCellRow(self, obj, **args):
-        if not self._script.inFocusMode():
-            return super()._generateTableCellRow(obj, **args)
-
         if not self._script.utilities.shouldReadFullRow(obj):
             return self._generateRealTableCell(obj, **args)
 

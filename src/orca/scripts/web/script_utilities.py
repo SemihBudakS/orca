@@ -108,7 +108,6 @@ class Utilities(script_utilities.Utilities):
         self._preferDescriptionOverName = {}
         self._shouldFilter = {}
         self._shouldInferLabelFor = {}
-        self._shouldReadFullRow = {}
         self._text = {}
         self._tag = {}
         self._xmlRoles = {}
@@ -190,7 +189,6 @@ class Utilities(script_utilities.Utilities):
         self._preferDescriptionOverName = {}
         self._shouldFilter = {}
         self._shouldInferLabelFor = {}
-        self._shouldReadFullRow = {}
         self._tag = {}
         self._xmlRoles = {}
         self._treatAsDiv = {}
@@ -1034,6 +1032,10 @@ class Utilities(script_utilities.Utilities):
                 msg = "WEB: Treating %s as non-text: is non-navigable embedded document." % obj
                 debug.println(debug.LEVEL_INFO, msg, True)
                 rv = None
+            if rv and self.isFakePlaceholderForEntry(obj):
+                msg = "WEB: Treating %s as non-text: is fake placeholder for entry." % obj
+                debug.println(debug.LEVEL_INFO, msg, True)
+                rv = None
 
         self._text[hash(obj)] = rv
         return rv
@@ -1087,6 +1089,10 @@ class Utilities(script_utilities.Utilities):
             if self.hasNameAndActionAndNoUsefulChildren(obj):
                 return True
 
+        if role in [pyatspi.ROLE_COLUMN_HEADER, pyatspi.ROLE_ROW_HEADER] \
+           and self.hasExplicitName(obj):
+            return True
+
         if role == pyatspi.ROLE_COMBO_BOX:
             return not self.isEditableComboBox(obj)
 
@@ -1097,6 +1103,9 @@ class Utilities(script_utilities.Utilities):
             return self.hasExplicitName(obj) or self.hasUselessCanvasDescendant(obj)
 
         if self.isNonNavigableEmbeddedDocument(obj):
+            return True
+
+        if self.isFakePlaceholderForEntry(obj):
             return True
 
         return False
@@ -1662,6 +1671,10 @@ class Utilities(script_utilities.Utilities):
 
             nextObj, nOffset = self.findNextCaretInOrder(lastObj, lastEnd - 1)
 
+        firstObj, firstStart, firstEnd, firstString = objects[0]
+        if firstString == "\n" and len(objects) > 1:
+            objects.pop(0)
+
         if useCache:
             self._currentLineContents = objects
 
@@ -1859,8 +1872,10 @@ class Utilities(script_utilities.Utilities):
             debug.println(debug.LEVEL_INFO, msg, True)
             return False
 
-        if state.contains(pyatspi.STATE_EDITABLE) \
-           or state.contains(pyatspi.STATE_EXPANDABLE):
+        if state.contains(pyatspi.STATE_EDITABLE):
+            return True
+
+        if state.contains(pyatspi.STATE_EXPANDABLE) and state.contains(pyatspi.STATE_FOCUSABLE):
             return True
 
         alwaysFocusModeRoles = [pyatspi.ROLE_COMBO_BOX,
@@ -2101,6 +2116,72 @@ class Utilities(script_utilities.Utilities):
             return True
 
         return self._getTag(obj) == 'blockquote'
+
+    def isContentDeletion(self, obj):
+        if not (obj and self.inDocumentContent(obj)):
+            return super().isContentDeletion(obj)
+
+        # Remove this check when we bump dependencies to 2.34
+        try:
+            if obj.getRole() == pyatspi.ROLE_CONTENT_DELETION:
+                return True
+        except:
+            pass
+
+        return 'deletion' in self._getXMLRoles(obj) or 'del' == self._getTag(obj)
+
+    def isContentInsertion(self, obj):
+        if not (obj and self.inDocumentContent(obj)):
+            return super().isContentInsertion(obj)
+
+        # Remove this check when we bump dependencies to 2.34
+        try:
+            if obj.getRole() == pyatspi.ROLE_CONTENT_INSERTION:
+                return True
+        except:
+            pass
+
+        return 'insertion' in self._getXMLRoles(obj) or 'ins' == self._getTag(obj)
+
+    def isContentMarked(self, obj):
+        if not (obj and self.inDocumentContent(obj)):
+            return super().isContentMarked(obj)
+
+        # Remove this check when we bump dependencies to 2.36
+        try:
+            if obj.getRole() == pyatspi.ROLE_MARK:
+                return True
+        except:
+            pass
+
+        return 'mark' in self._getXMLRoles(obj) or 'mark' == self._getTag(obj)
+
+    def isContentSuggestion(self, obj):
+        if not (obj and self.inDocumentContent(obj)):
+            return super().isContentSuggestion(obj)
+
+        # Remove this check when we bump dependencies to 2.36
+        try:
+            if obj.getRole() == pyatspi.ROLE_SUGGESTION:
+                return True
+        except:
+            pass
+
+        return 'suggestion' in self._getXMLRoles(obj)
+
+    def isInlineSuggestion(self, obj):
+        if not self.isContentSuggestion(obj):
+            return False
+
+        displayStyle = self._getDisplayStyle(obj)
+        return "inline" in displayStyle
+
+    def isLastItemInInlineContentSuggestion(self, obj):
+        suggestion = pyatspi.findAncestor(obj, self.isInlineSuggestion)
+        if not (suggestion and suggestion.childCount):
+            return False
+
+        return suggestion[-1] == obj
 
     def speakMathSymbolNames(self, obj=None):
         obj = obj or orca_state.locusOfFocus
@@ -2568,27 +2649,13 @@ class Utilities(script_utilities.Utilities):
         if not (obj and self.inDocumentContent(obj)):
             return super().shouldReadFullRow(obj)
 
-        rv = self._shouldReadFullRow.get(hash(obj))
-        if rv is not None:
-            return rv
-
-        try:
-            role = obj.getRole()
-            state = obj.getState()
-        except:
-            msg = "ERROR: Exception getting role and state for %s" % obj
-            debug.println(debug.LEVEL_INFO, msg, True)
+        if not super().shouldReadFullRow(obj):
             return False
 
-        if role == pyatspi.ROLE_TABLE_CELL and state.contains(pyatspi.STATE_FOCUSABLE):
-            msg = "WEB: Should not read full row: focusable cell %s" % obj
-            debug.println(debug.LEVEL_INFO, msg, True)
-            rv = False
-        else:
-            rv = super().shouldReadFullRow(obj)
+        if self.isGridDescendant(obj):
+            return not self._script.inFocusMode()
 
-        self._shouldReadFullRow[hash(obj)] = rv
-        return rv
+        return True
 
     def isEntryDescendant(self, obj):
         if not obj:
@@ -2683,6 +2750,14 @@ class Utilities(script_utilities.Utilities):
             rv = False
         elif self.isLandmark(obj):
             rv = False
+        elif self.isContentDeletion(obj):
+            rv = False
+        elif self.isContentInsertion(obj):
+            rv = False
+        elif self.isContentMarked(obj):
+            rv = False
+        elif self.isContentSuggestion(obj):
+            rv = False
         elif self.isDPub(obj):
             rv = False
         elif self.isFeed(obj):
@@ -2729,10 +2804,11 @@ class Utilities(script_utilities.Utilities):
             debug.println(debug.LEVEL_INFO, msg, True)
             return False
 
+        tokens = list(filter(lambda x: x, re.split(r"[\s\ufffc]", text.getText(0, -1))))
+
         # Note: We cannot check for the editable-text interface, because Gecko
         # seems to be exposing that for non-editable things. Thanks Gecko.
-        rv = not state.contains(pyatspi.STATE_EDITABLE) \
-            and len(text.getText(0, -1).split()) > 1
+        rv = not state.contains(pyatspi.STATE_EDITABLE) and len(tokens) > 1
         if rv:
             boundary = pyatspi.TEXT_BOUNDARY_LINE_START
             i = 0
@@ -2942,16 +3018,6 @@ class Utilities(script_utilities.Utilities):
                 return True
 
         return False
-
-    def isListItemMarkerInSimpleItem(self, obj):
-        if not self.isListItemMarker(obj):
-            return False
-
-        for i in range(1, obj.parent.childCount):
-            if not self.isStaticTextLeaf(obj.parent[i]):
-                return False
-
-        return True
 
     def isInferredLabelForContents(self, content, contents):
         obj, start, end, string = content
@@ -3258,6 +3324,26 @@ class Utilities(script_utilities.Utilities):
 
         self._isErrorMessage[hash(obj)] = rv
         return rv
+
+    def isFakePlaceholderForEntry(self, obj):
+        if not (obj and self.inDocumentContent(obj)):
+            return False
+
+        if not (obj.parent.getRole() == pyatspi.ROLE_ENTRY and obj.parent.name):
+            return False
+
+        def _isMatch(x):
+            try:
+                role = x.getRole()
+                string = x.queryText().getText(0, -1).strip()
+            except:
+                return False
+            return role in [pyatspi.ROLE_SECTION, pyatspi.ROLE_STATIC] and obj.parent.name == string
+
+        if _isMatch(obj):
+            return True
+
+        return pyatspi.findDescendant(obj, _isMatch) is not None
 
     def isInlineListItem(self, obj):
         if not (obj and self.inDocumentContent(obj)):
@@ -4126,8 +4212,8 @@ class Utilities(script_utilities.Utilities):
             msg = "WEB: Static text leaf cannot have caret context %s" % obj
             debug.println(debug.LEVEL_INFO, msg, True)
             return False
-        if self.isListItemMarkerInSimpleItem(obj):
-            msg = "WEB: List item marker in simple item cannot have caret context %s" % obj
+        if self.isFakePlaceholderForEntry(obj):
+            msg = "WEB: Fake placeholder for entry cannot have caret context %s" % obj
             debug.println(debug.LEVEL_INFO, msg, True)
             return False
 
@@ -4312,13 +4398,6 @@ class Utilities(script_utilities.Utilities):
             msg = "WEB: First caret context for %s, %i will look in child %s" % (obj, offset, obj[0])
             debug.println(debug.LEVEL_INFO, msg, True)
             return self.findFirstCaretContext(obj[0], 0)
-
-        if self.isListItemMarker(obj):
-            nextObj, nextOffset = obj, offset
-            while nextObj and self.isListItemMarker(nextObj):
-                nextObj, nextOffset = self.nextContext(nextObj, nextOffset)
-            if nextObj:
-                obj, offset = nextObj, nextOffset
 
         text = self.queryNonEmptyText(obj)
         if not text:
